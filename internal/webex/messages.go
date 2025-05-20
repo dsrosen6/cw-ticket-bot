@@ -7,21 +7,24 @@ import (
 	"fmt"
 )
 
-type Message struct {
-	RoomId string `json:"roomId,omitempty"`
-	Person string `json:"toPersonEmail,omitempty"`
-	Text   string `json:"markdown"`
+func NewMessageToPerson(email, text string) MessagePostBody {
+	return MessagePostBody{Person: email, Markdown: text}
 }
 
-func NewMessageToPerson(email, text string) Message {
-	return Message{Person: email, Text: text}
+func NewMessageToRoom(roomId, text string) MessagePostBody {
+	return MessagePostBody{RoomId: roomId, Markdown: text}
 }
 
-func NewMessageToRoom(roomId, text string) Message {
-	return Message{RoomId: roomId, Text: text}
+func (c *Client) GetMessage(ctx context.Context, messageId string) (*MessageGetResponse, error) {
+	m := &MessageGetResponse{}
+	if err := c.request(ctx, "GET", fmt.Sprintf("messages/%s", messageId), nil, m); err != nil {
+		return nil, fmt.Errorf("getting message %s: %w", messageId, err)
+	}
+
+	return m, nil
 }
 
-func (c *Client) SendMessage(ctx context.Context, message Message) error {
+func (c *Client) SendMessage(ctx context.Context, message MessagePostBody) error {
 	j, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("marshaling message to json: %w", err)

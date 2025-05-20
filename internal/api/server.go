@@ -17,9 +17,10 @@ const (
 	defaultAddr    = ":8080"
 	defaultTimeout = 60
 
-	envVarAddr       = "TICKET_BOT_SERVER_ADDR"
-	envVarTimeout    = "TICKET_BOT_TIMEOUT_SECONDS"
-	envVarWebexToken = "TICKET_BOT_WEBEX_TOKEN"
+	envVarAddr          = "TICKET_BOT_SERVER_ADDR"
+	envVarTimeout       = "TICKET_BOT_TIMEOUT_SECONDS"
+	envVarWebexToken    = "TICKET_BOT_WEBEX_TOKEN"
+	envVarWebexBotEmail = "TICKET_BOT_WEBEX_BOT_EMAIL"
 )
 
 type Server struct {
@@ -27,6 +28,7 @@ type Server struct {
 	webexClient *webex.Client
 	addr        string
 	timeout     int
+	botEmail    string
 }
 
 func NewServer() (*Server, error) {
@@ -37,9 +39,14 @@ func NewServer() (*Server, error) {
 	addr := getAddr(os.Getenv(envVarAddr))
 	timeout := getTimeout(os.Getenv(envVarTimeout))
 	webexToken := os.Getenv(envVarWebexToken)
+	webexBotEmail := os.Getenv(envVarWebexBotEmail)
 
 	if webexToken == "" {
 		return nil, fmt.Errorf("webex token is empty")
+	}
+
+	if webexBotEmail == "" {
+		return nil, fmt.Errorf("webex bot email is empty")
 	}
 
 	httpClient := http.DefaultClient
@@ -49,6 +56,7 @@ func NewServer() (*Server, error) {
 		webexClient: webex.NewClient(httpClient, webexToken),
 		addr:        addr,
 		timeout:     timeout,
+		botEmail:    webexBotEmail,
 	}, nil
 }
 
@@ -61,7 +69,8 @@ func (s *Server) Run() error {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(time.Duration(s.timeout) * time.Second))
 
-	r.Mount("/ping", pingRouter())
+	r.Mount("/ping", PingRouter())
+	r.Mount("/directmsg", s.DirectMessageRouter())
 
 	log.Println("listening at:", s.addr)
 
