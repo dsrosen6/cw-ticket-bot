@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"github.com/dsrosen6/cw-ticket-bot/internal/connectwise"
 	"github.com/dsrosen6/cw-ticket-bot/internal/webex"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -23,11 +24,16 @@ const (
 	envVarWebexToken     = "TICKET_BOT_WEBEX_TOKEN"
 	envVarWebexBotEmail  = "TICKET_BOT_WEBEX_BOT_EMAIL"
 	envVarWebhookBaseUrl = "TICKET_BOT_WEBHOOK_BASE_URL"
+	envVarCwCompanyId    = "TICKET_BOT_CW_COMPANY_ID"
+	envVarCwClientId     = "TICKET_BOT_CW_CLIENT_ID"
+	envVarCwPublicKey    = "TICKET_BOT_CW_PUBLIC_KEY"
+	envVarCwPrivateKey   = "TICKET_BOT_CW_PRIVATE_KEY"
 )
 
 type Server struct {
 	httpClient     *http.Client
 	webexClient    *webex.Client
+	cwClient       *connectwise.Client
 	db             *DB
 	addr           string
 	webhookBaseUrl string
@@ -45,17 +51,21 @@ func NewServer() (*Server, error) {
 	webexToken := os.Getenv(envVarWebexToken)
 	webexBotEmail := os.Getenv(envVarWebexBotEmail)
 	webhookBaseUrl := os.Getenv(envVarWebhookBaseUrl)
+	cwCompanyId := os.Getenv(envVarCwCompanyId)
+	cwClientId := os.Getenv(envVarCwClientId)
+	cwPublicKey := os.Getenv(envVarCwPublicKey)
+	cwPrivateKey := os.Getenv(envVarCwPrivateKey)
 
-	if webexToken == "" {
-		return nil, fmt.Errorf("webex token is empty")
-	}
-
-	if webexBotEmail == "" {
-		return nil, fmt.Errorf("webex bot email is empty")
+	if webexToken == "" || webexBotEmail == "" {
+		return nil, fmt.Errorf("one or more webex environment variable is empty")
 	}
 
 	if webhookBaseUrl == "" {
 		return nil, fmt.Errorf("webhook base url is empty")
+	}
+
+	if cwCompanyId == "" || cwClientId == "" || cwPublicKey == "" || cwPrivateKey == "" {
+		return nil, fmt.Errorf("one or more connectwise environment variables are empty")
 	}
 
 	httpClient := http.DefaultClient
@@ -67,6 +77,7 @@ func NewServer() (*Server, error) {
 	return &Server{
 		httpClient:     httpClient,
 		webexClient:    webex.NewClient(httpClient, webexToken),
+		cwClient:       connectwise.NewClient(httpClient, cwPublicKey, cwPrivateKey, cwClientId, cwCompanyId),
 		db:             db,
 		addr:           addr,
 		webhookBaseUrl: webhookBaseUrl,
