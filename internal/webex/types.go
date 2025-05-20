@@ -10,6 +10,10 @@ type Webhook struct {
 	Filter    string `json:"filter"`
 }
 
+type WebhooksGetResponse struct {
+	Items []Webhook `json:"items"`
+}
+
 type MessageWebhookBody struct {
 	Id        string    `json:"id,omitempty"`
 	Name      string    `json:"name,omitempty"`

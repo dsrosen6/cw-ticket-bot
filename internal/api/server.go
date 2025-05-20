@@ -16,19 +16,23 @@ import (
 const (
 	defaultAddr    = ":8080"
 	defaultTimeout = 60
+	defaultDbName  = "data.db"
 
-	envVarAddr          = "TICKET_BOT_SERVER_ADDR"
-	envVarTimeout       = "TICKET_BOT_TIMEOUT_SECONDS"
-	envVarWebexToken    = "TICKET_BOT_WEBEX_TOKEN"
-	envVarWebexBotEmail = "TICKET_BOT_WEBEX_BOT_EMAIL"
+	envVarAddr           = "TICKET_BOT_SERVER_ADDR"
+	envVarTimeout        = "TICKET_BOT_TIMEOUT_SECONDS"
+	envVarWebexToken     = "TICKET_BOT_WEBEX_TOKEN"
+	envVarWebexBotEmail  = "TICKET_BOT_WEBEX_BOT_EMAIL"
+	envVarWebhookBaseUrl = "TICKET_BOT_WEBHOOK_BASE_URL"
 )
 
 type Server struct {
-	httpClient  *http.Client
-	webexClient *webex.Client
-	addr        string
-	timeout     int
-	botEmail    string
+	httpClient     *http.Client
+	webexClient    *webex.Client
+	db             *DB
+	addr           string
+	webhookBaseUrl string
+	timeout        int
+	botEmail       string
 }
 
 func NewServer() (*Server, error) {
@@ -40,6 +44,7 @@ func NewServer() (*Server, error) {
 	timeout := getTimeout(os.Getenv(envVarTimeout))
 	webexToken := os.Getenv(envVarWebexToken)
 	webexBotEmail := os.Getenv(envVarWebexBotEmail)
+	webhookBaseUrl := os.Getenv(envVarWebhookBaseUrl)
 
 	if webexToken == "" {
 		return nil, fmt.Errorf("webex token is empty")
@@ -49,14 +54,24 @@ func NewServer() (*Server, error) {
 		return nil, fmt.Errorf("webex bot email is empty")
 	}
 
+	if webhookBaseUrl == "" {
+		return nil, fmt.Errorf("webhook base url is empty")
+	}
+
 	httpClient := http.DefaultClient
+	db, err := newDB(defaultDbName)
+	if err != nil {
+		return nil, fmt.Errorf("opening db: %w", err)
+	}
 
 	return &Server{
-		httpClient:  httpClient,
-		webexClient: webex.NewClient(httpClient, webexToken),
-		addr:        addr,
-		timeout:     timeout,
-		botEmail:    webexBotEmail,
+		httpClient:     httpClient,
+		webexClient:    webex.NewClient(httpClient, webexToken),
+		db:             db,
+		addr:           addr,
+		webhookBaseUrl: webhookBaseUrl,
+		timeout:        timeout,
+		botEmail:       webexBotEmail,
 	}, nil
 }
 
@@ -69,11 +84,15 @@ func (s *Server) Run() error {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(time.Duration(s.timeout) * time.Second))
 
+	if err := s.db.InitSchema(); err != nil {
+		return fmt.Errorf("initializing db schema: %w", err)
+	}
+	log.Println("db initialized")
+
 	r.Mount("/ping", PingRouter())
 	r.Mount("/directmsg", s.DirectMessageRouter())
 
 	log.Println("listening at:", s.addr)
-
 	if err := http.ListenAndServe(s.addr, r); err != nil {
 		return fmt.Errorf("an error occured running the server: %w", err)
 	}

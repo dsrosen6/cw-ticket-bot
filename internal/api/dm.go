@@ -60,6 +60,7 @@ func getMessageText(msg *webex.MessageGetResponse) (string, error) {
 	return "", fmt.Errorf("no markdown or text found in message %s", msg.Id)
 }
 
+// isWebexBot checks if the sender of the message is the webex bot
 func (s *Server) isWebexBot(msg *webex.MessageGetResponse) bool {
 	return msg.PersonEmail == s.botEmail
 }
