@@ -33,9 +33,12 @@ type Room struct {
 }
 
 type Board struct {
-	ID        int
-	RoomID    int
-	BoardName string
+	ID                 int
+	BoardName          string
+	RoomID             int
+	NotifyNewTickets   bool
+	NotifyStaleTickets bool
+	NotifySlaBreach    bool
 }
 
 func newDB(dataSourceName string) (*DB, error) {
@@ -57,4 +60,41 @@ func (db *DB) InitSchema() error {
 	}
 
 	return nil
+}
+
+func (db *DB) GetBoardsWithNewTicketNoti() ([]Board, error) {
+	return db.getBoardsWithNoti("notify_new_tickets", func(b *Board, v int) { b.NotifyNewTickets = v == 1 })
+}
+
+func (db *DB) GetBoardsWithStaleTicketNoti() ([]Board, error) {
+	return db.getBoardsWithNoti("notify_stale_tickets", func(b *Board, v int) { b.NotifyStaleTickets = v == 1 })
+}
+
+func (db *DB) GetBoardsWithSlaBreachNoti() ([]Board, error) {
+	return db.getBoardsWithNoti("notify_sla_breach", func(b *Board, v int) { b.NotifySlaBreach = v == 1 })
+}
+
+func (db *DB) getBoardsWithNoti(column string, setField func(*Board, int)) ([]Board, error) {
+	query := fmt.Sprintf("SELECT id, board_name, room_id, %s FROM boards WHERE %s = 1", column, column)
+	rows, err := db.conn.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("querying boards with %s enabled: %w", column, err)
+	}
+	defer rows.Close()
+
+	var boards []Board
+	for rows.Next() {
+		var b Board
+		var flag int
+		if err := rows.Scan(&b.ID, &b.BoardName, &b.RoomID, &flag); err != nil {
+			return nil, fmt.Errorf("scanning board: %w", err)
+		}
+		setField(&b, flag)
+		boards = append(boards, b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating boards: %w", err)
+	}
+
+	return boards, nil
 }
